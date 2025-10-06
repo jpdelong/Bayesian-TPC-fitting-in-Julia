@@ -13,17 +13,6 @@ scenario = tpcdata.Scenario
 
 
 
-indices = findall(tpcdata.Population .== 4 .&& tpcdata.Home_Temp .== 20)
-temps = tpcdata.Exp_Temp[indices]
-rint = tpcdata.r[indices]
-scenario = tpcdata.Scenario[indices]
-levels = zeros(Int64,size(scenario))
-
-# turn the string scenarios into integer levels for hierarchies
-indices = findall(scenario .== "Acute")
-levels[indices] .= 1
-indices = findall(scenario .== "CG")
-levels[indices] .= 2
 
 scatter(temps,rint)
 
@@ -100,14 +89,27 @@ plot!(p1,xrange, y_fit, color=:red, label="Fit", linewidth=2)
 ###### hierarchical fitting
 ##########################################
 
+
+indices = findall(tpcdata.Population .== 4 .&& tpcdata.Home_Temp .== 20)
+temps = tpcdata.Exp_Temp[indices]
+rint = tpcdata.r[indices]
+scenario = tpcdata.Scenario[indices]
+levels = zeros(Int64,size(scenario))
+
+# turn the string scenarios into integer levels for hierarchies
+indices = findall(scenario .== "Acute")
+levels[indices] .= 1
+indices = findall(scenario .== "CG")
+levels[indices] .= 2
+
 # Lactin 2 thermal performance curve model - hierarchical
 @model function tpc_lactin2_h(temperature,rint,levels) 
     n_rep = length(unique(levels)) # how many sublevel parameters, one for each scenario
 
     # model parameters, upper level in the hiararchy
-    ρ ~ truncated(Normal(0.05,0.1),0,1)
+    ρ ~ truncated(Normal(0.05,0.05),0,1)
     ΔT ~ truncated(Normal(2,10),0,10)
-    λ ~ Normal(-2,5)
+    λ ~ Normal(-2,3)
     tmax ~ truncated(Normal(40,5),minimum(temperature),1.5*maximum(temperature))
 
     # model parameters, lower level in the hierarchy
@@ -142,5 +144,38 @@ end
 
 model = tpc_lactin2_h(temps,rint,levels) 
 
+# call the fitting
+chain_tpc = sample(
+    model,
+    NUTS(5000,0.65),
+    MCMCSerial(),
+    2000,
+    #init_params = [(starting_a,starting_h,10)],
+    1)
 
+plot(chain_tpc)
+
+# Plot the fitted curve
+p1 = scatter(temps,rint,group=scenario)
+xrange = LinRange(10, maximum(temps), 50)
+@. lactin2(x, p) = exp.(p[1].*x) - exp.(p[1].*p[4] .- (p[4] - x) ./ p[2]) + p[3]
+
+# grab parameters for first group
+fitted_ρ = median(chain_tpc[:"ρ_rep[1]"])
+fitted_ΔT = median(chain_tpc[:"ΔT_rep[1]"])
+fitted_λ = median(chain_tpc[:"λ_rep[1]"])
+fitted_tmax = median(chain_tpc[:"tmax_rep[1]"])
+y_fit = lactin2(xrange, [fitted_ρ,fitted_ΔT,fitted_λ,fitted_tmax])
+plot!(p1,xrange, y_fit, color=:blue, label="Fit", linewidth=2)
+
+
+# grab parameters for second group
+fitted_ρ = median(chain_tpc[:"ρ_rep[2]"])
+fitted_ΔT = median(chain_tpc[:"ΔT_rep[2]"])
+fitted_λ = median(chain_tpc[:"λ_rep[2]"])
+fitted_tmax = median(chain_tpc[:"tmax_rep[2]"])
+y_fit = lactin2(xrange, [fitted_ρ,fitted_ΔT,fitted_λ,fitted_tmax])
+plot!(p1,xrange, y_fit, color=:red, label="Fit", linewidth=2)
+
+savefig(p1,"hierarchical_tpc.png")
 
