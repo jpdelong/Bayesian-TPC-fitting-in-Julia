@@ -5,16 +5,6 @@ cd(dir)
 using Turing, MCMCChains, StatsPlots, Distributions, CSV, DataFrames
 
 tpcdata = CSV.read("P_caudatum_rTPC_spring_2020.csv",DataFrame)
-temperature = tpcdata.Exp_Temp
-rint = tpcdata.r
-pop = tpcdata.Population
-scenario = tpcdata.Scenario
-    
-
-
-
-
-scatter(temps,rint)
 
 ##########################################
 ###### non-hierarchical fitting
@@ -51,38 +41,9 @@ chain_tpc = sample(
 plot(chain_tpc)
 summarystats(chain_tpc)
 
-# Plot the fitted curve
-p1 = scatter(temps,rint)
-xrange = LinRange(10, maximum(temps), 50)
-@. lactin2(x, p) = exp.(p[1].*x) - exp.(p[1].*p[4] .- (p[4] - x) ./ p[2]) + p[3]
-
-# plot sample lines from posterior
-for i in 1:100 # Plot 100 random samples for clarity
-    # Get parameter values for the current sample
-    ρ_samp = chain_tpc[:ρ][i]
-    ΔT_samp = chain_tpc[:ΔT][i]
-    λ_samp = chain_tpc[:λ][i]
-    tmax_samp = chain_tpc[:tmax][i]
-
-    y_fit = lactin2(xrange, [ρ_samp,ΔT_samp,λ_samp,tmax_samp])
-
-    # Plot the fitted line with a transparent line style
-    plot!(p1, xrange, y_fit, label=nothing, color=:gray, alpha=0.2)
-end
-
-# plot the curve for the median values
-# pull the media values
-fitted_ρ = median(chain_tpc[:ρ])
-fitted_ΔT = median(chain_tpc[:ΔT])
-fitted_λ = median(chain_tpc[:λ])
-fitted_tmax = median(chain_tpc[:tmax])
-
-y_fit = lactin2(xrange, [fitted_ρ,fitted_ΔT,fitted_λ,fitted_tmax])
-plot!(p1,xrange, y_fit, color=:red, label="Fit", linewidth=2)
-
-
-
-
+# call the custom fitting function
+include("plot_tpc_fit.jl")
+plot_tpc_fit(temps,rint,chain_tpc,model)
 
 
 ##########################################
