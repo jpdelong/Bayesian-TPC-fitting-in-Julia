@@ -17,7 +17,7 @@ rint = tpcdata.r[indices]
 
 # Lactin 2 thermal performance curve model
 @model function tpc_lactin2(temperature,rint) 
-    ρ ~ truncated(Normal(0.05,0.05),0,1)
+    ρ ~ truncated(Normal(0.05,0.1),0,1)
     ΔT ~ truncated(Normal(2,10),0,10)
     λ ~ Normal(-2,3)
     tmax ~ truncated(Normal(40,5),minimum(temperature),1.5*maximum(temperature))
@@ -27,7 +27,7 @@ rint = tpcdata.r[indices]
     end
 end
 
-model = tpc_lactin2(temps,rint) 
+model = tpc_lactin2(temps,rint)
 
 # call the fitting
 chain_tpc = sample(
@@ -43,7 +43,8 @@ summarystats(chain_tpc)
 
 # call the custom fitting function
 include("plot_tpc_fit.jl")
-plot_tpc_fit(temps,rint,chain_tpc,model)
+fig1 = plot_tpc_fit(temps,rint,chain_tpc,model)
+savefig(fig1,"single_fit_tpc.png")
 
 
 ##########################################
@@ -67,9 +68,9 @@ levels[indices] .= 2
 @model function tpc_lactin2_h(temperature,rint,levels) 
     n_rep = length(unique(levels)) # how many sublevel parameters, one for each scenario
 
-    # model parameters, upper level in the hiararchy
+    # model parameters, upper level in the hieararchy
     ρ ~ truncated(Normal(0.05,0.05),0,1)
-    ΔT ~ truncated(Normal(2,10),0,10)
+    ΔT ~ truncated(Normal(2,10),0,7)
     λ ~ Normal(-2,3)
     tmax ~ truncated(Normal(40,5),minimum(temperature),1.5*maximum(temperature))
 
@@ -78,7 +79,7 @@ levels[indices] .= 2
     ρ_rep ~ filldist(truncated(Normal(ρ,σ_ρ),0,1), n_rep) # group-level parameters
 
     σ_ΔT ~ LogNormal(1/2)
-    ΔT_rep ~ filldist(truncated(Normal(ΔT,σ_ΔT),0,10), n_rep) # group-level parameters
+    ΔT_rep ~ filldist(truncated(Normal(ΔT,σ_ΔT),0,7), n_rep) # group-level parameters
 
     σ_λ ~ LogNormal(1/1)
     λ_rep ~ filldist(Normal(λ,σ_λ), n_rep) # group-level parameters
@@ -86,21 +87,9 @@ levels[indices] .= 2
     σ_tmax ~ LogNormal(1/40)
     tmax_rep ~ filldist(truncated(Normal(tmax,σ_tmax),minimum(temperature),1.5*maximum(temperature)), n_rep) # group-level parameters
 
-    # replicate specific parameter set
-    #p = [ρ_rep[j], ΔT_rep[j], λ_rep[j], tmax_rep[j]]
-
     for i in 1:length(rint)
         rint[i] ~ Normal(exp(ρ_rep[levels[i]]*temperature[i]) - exp(ρ_rep[levels[i]]*tmax_rep[levels[i]] - (tmax_rep[levels[i]] - temperature[i]) / ΔT_rep[levels[i]]) + λ_rep[levels[i]])
     end
-
-    #=for j in 1:n_rep
-        # replicate specific parameter set
-        p = [ρ_rep[j], ΔT_rep[j], λ_rep[j], tmax_rep[j]]
-
-        for i in 1:length(rint)
-            rint[i,j] ~ Normal(exp(ρ*temperature[i]) - exp(ρ*tmax - (tmax - temperature[i]) / ΔT) + λ)
-        end
-    end=#
 end
 
 model = tpc_lactin2_h(temps,rint,levels) 
@@ -116,27 +105,9 @@ chain_tpc = sample(
 
 plot(chain_tpc)
 
-# Plot the fitted curve
-p1 = scatter(temps,rint,group=scenario)
-xrange = LinRange(10, maximum(temps), 50)
-@. lactin2(x, p) = exp.(p[1].*x) - exp.(p[1].*p[4] .- (p[4] - x) ./ p[2]) + p[3]
-
-# grab parameters for first group
-fitted_ρ = median(chain_tpc[:"ρ_rep[1]"])
-fitted_ΔT = median(chain_tpc[:"ΔT_rep[1]"])
-fitted_λ = median(chain_tpc[:"λ_rep[1]"])
-fitted_tmax = median(chain_tpc[:"tmax_rep[1]"])
-y_fit = lactin2(xrange, [fitted_ρ,fitted_ΔT,fitted_λ,fitted_tmax])
-plot!(p1,xrange, y_fit, color=:blue, label="Fit", linewidth=2)
+# call the custom fitting function
+include("plot_tpc_fit_multiple_curves.jl")
+fig2 = plot_tpc_fit_multiple_curves(temps,rint,chain_tpc,model,scenario,2)
 
 
-# grab parameters for second group
-fitted_ρ = median(chain_tpc[:"ρ_rep[2]"])
-fitted_ΔT = median(chain_tpc[:"ΔT_rep[2]"])
-fitted_λ = median(chain_tpc[:"λ_rep[2]"])
-fitted_tmax = median(chain_tpc[:"tmax_rep[2]"])
-y_fit = lactin2(xrange, [fitted_ρ,fitted_ΔT,fitted_λ,fitted_tmax])
-plot!(p1,xrange, y_fit, color=:red, label="Fit", linewidth=2)
-
-savefig(p1,"hierarchical_tpc.png")
-
+savefig(fig2,"multi_fit_tpc.png")
