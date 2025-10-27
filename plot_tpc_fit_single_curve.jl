@@ -35,9 +35,6 @@ plot!(p1,xrange, y_fit, color=:red, label="Fit", linewidth=2)
 p2 = density(chain[:ρ], label = "Prior", linewidth = 2)
 density!(p2, chain_tpc[:ρ], label = "Posterior", color=:red, linewidth = 2, xlabel="ρ")
 
-#density!(p2, chain_tpc[:"ρ_rep[1]"], label = "Posterior", color=:red, linewidth = 2, xlabel="ρ")
-#density!(p2, chain_tpc[:"ρ_rep[2]"], label = "Posterior", color=:red, linewidth = 2, xlabel="ρ")
-
 p3 = density(chain[:ΔT], label = "Prior", linewidth = 2)
 density!(p3, chain_tpc[:ΔT], label = "Posterior", color=:red, linewidth = 2, xlabel="ΔT")
 
